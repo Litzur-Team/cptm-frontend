@@ -1,18 +1,22 @@
 <script setup>
 import { ref, onMounted, onUnmounted, provide } from "vue";
+
+// Components (reusable UI)
 import SplashScreen from "./components/SplashScreen.vue";
-import Login from "./components/Login.vue";
-import InspectorPanel from "./components/InspectorPanel.vue";
-import InspectorHome from "./components/InspectorHome.vue";
-import AdminPanel from "./components/AdminPanel.vue";
 import BottomNavigation from "./components/BottomNavigation.vue";
-import Profile from "./components/Profile.vue";
-import History from "./components/History.vue";
-import Settings from "./components/Settings.vue";
 import ToastNotification from "./components/ToastNotification.vue";
-import ForgotPassword from "./components/ForgotPassword.vue";
-import ReportDetail from "./components/ReportDetail.vue";
-import InspectorDetail from "./components/InspectorDetail.vue";
+
+// Pages
+import Login from "./pages/Login.vue";
+import ForgotPassword from "./pages/ForgotPassword.vue";
+import InspectorPanel from "./pages/InspectorPanel.vue";
+import InspectorHome from "./pages/InspectorHome.vue";
+import AdminPanel from "./pages/AdminPanel.vue";
+import Profile from "./pages/Profile.vue";
+import History from "./pages/History.vue";
+import Settings from "./pages/Settings.vue";
+import ReportDetail from "./pages/ReportDetail.vue";
+import InspectorDetail from "./pages/InspectorDetail.vue";
 
 const showSplash = ref(true);
 const currentView = ref("login");
