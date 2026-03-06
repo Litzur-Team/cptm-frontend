@@ -9,6 +9,7 @@ const activeTab = ref('reports')
 const isModalOpen = ref(false)
 const editingInspector = ref(null)
 const searchQuery = ref('')
+const statusFilter = ref('all')
 
 // Campos do Formulário
 const form = ref({ id: null, name: '', user: '', pass: '' })
@@ -20,16 +21,21 @@ const inProgressReports = computed(() => props.reports.filter(r => r.status === 
 const resolvedReports = computed(() => props.reports.filter(r => r.status === 'Resolvido').length)
 const totalInspectors = computed(() => props.inspectors.length)
 
-// Filtro de busca
+// Filtro de busca + status
 const filteredReports = computed(() => {
-  if (!searchQuery.value) return props.reports
-  const q = searchQuery.value.toLowerCase()
-  return props.reports.filter(r =>
-    r.location.toLowerCase().includes(q) ||
-    r.issue.toLowerCase().includes(q) ||
-    r.inspector.toLowerCase().includes(q) ||
-    r.status.toLowerCase().includes(q)
-  )
+  let result = props.reports
+  if (statusFilter.value !== 'all') {
+    result = result.filter(r => r.status === statusFilter.value)
+  }
+  if (searchQuery.value) {
+    const q = searchQuery.value.toLowerCase()
+    result = result.filter(r =>
+      r.location.toLowerCase().includes(q) ||
+      r.issue.toLowerCase().includes(q) ||
+      r.inspector.toLowerCase().includes(q)
+    )
+  }
+  return result
 })
 
 const filteredInspectors = computed(() => {
@@ -165,6 +171,30 @@ const saveInspector = () => {
 
     <!-- ==================== ABA RELATÓRIOS ==================== -->
     <div v-if="activeTab === 'reports'" class="space-y-3">
+
+      <!-- Filtros de Status -->
+      <div class="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
+        <button
+          @click="statusFilter = 'all'"
+          :class="statusFilter === 'all' ? 'bg-gray-800 text-white' : 'bg-white text-gray-600 border border-gray-200'"
+          class="px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-150 active:scale-95"
+        >Todos ({{ totalReports }})</button>
+        <button
+          @click="statusFilter = 'Pendente'"
+          :class="statusFilter === 'Pendente' ? 'bg-amber-500 text-white' : 'bg-white text-amber-600 border border-amber-200'"
+          class="px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-150 active:scale-95"
+        >Pendentes ({{ pendingReports }})</button>
+        <button
+          @click="statusFilter = 'Em Andamento'"
+          :class="statusFilter === 'Em Andamento' ? 'bg-blue-500 text-white' : 'bg-white text-blue-600 border border-blue-200'"
+          class="px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-150 active:scale-95"
+        >Em Andamento ({{ inProgressReports }})</button>
+        <button
+          @click="statusFilter = 'Resolvido'"
+          :class="statusFilter === 'Resolvido' ? 'bg-emerald-500 text-white' : 'bg-white text-emerald-600 border border-emerald-200'"
+          class="px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-150 active:scale-95"
+        >Resolvidos ({{ resolvedReports }})</button>
+      </div>
       
       <p v-if="filteredReports.length === 0" class="text-center text-gray-400 text-sm py-8">
         {{ searchQuery ? 'Nenhum relatório encontrado.' : 'Nenhum relatório registrado ainda.' }}
