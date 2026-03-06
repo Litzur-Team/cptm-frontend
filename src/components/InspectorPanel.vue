@@ -16,6 +16,7 @@ const showToast = inject('showToast')
 
 const locationDesc = ref('')
 const issue = ref('')
+const selectedCategory = ref(null)
 const coords = ref(null)
 const lat = ref(null)
 const lng = ref(null)
@@ -29,6 +30,30 @@ const totalSteps = 5
 const mapContainer = ref(null)
 let map = null
 let marker = null
+
+const problemCategories = [
+  { id: 'catraca', label: 'Catraca inoperante', icon: '🚧' },
+  { id: 'iluminacao', label: 'Iluminação com defeito', icon: '💡' },
+  { id: 'limpeza', label: 'Limpeza / Higiene', icon: '🧹' },
+  { id: 'acessibilidade', label: 'Acessibilidade comprometida', icon: '♿' },
+  { id: 'seguranca', label: 'Problema de segurança', icon: '⚠️' },
+  { id: 'sinalizacao', label: 'Sinalização danificada', icon: '🪧' },
+  { id: 'vazamento', label: 'Vazamento / Infiltração', icon: '💧' },
+  { id: 'escada', label: 'Escada rolante parada', icon: '🔧' },
+  { id: 'elevador', label: 'Elevador fora de serviço', icon: '🛗' },
+  { id: 'outro', label: 'Outro problema', icon: '📝' },
+]
+
+const selectCategory = (cat) => {
+  if (selectedCategory.value === cat.id) {
+    selectedCategory.value = null
+  } else {
+    selectedCategory.value = cat.id
+    if (cat.id !== 'outro' && !issue.value) {
+      issue.value = cat.label
+    }
+  }
+}
 
 const progressPercentage = computed(() => {
   return ((currentStep.value - 1) / (totalSteps - 1)) * 100
@@ -117,7 +142,11 @@ const nextStep = () => {
       return
     }
     if (currentStep.value === 3 && !issue.value) {
-      showToast('Por favor, descreva o problema.', 'warning')
+      showToast('Por favor, descreva o problema encontrado.', 'warning')
+      return
+    }
+    if (currentStep.value === 3 && !selectedCategory.value) {
+      showToast('Selecione uma categoria do problema.', 'warning')
       return
     }
     currentStep.value++
@@ -180,6 +209,7 @@ const submit = () => {
   // Limpar formulário
   locationDesc.value = ''
   issue.value = ''
+  selectedCategory.value = null
   coords.value = null
   lat.value = null
   lng.value = null
@@ -256,14 +286,35 @@ const submit = () => {
       <!-- Passo 3: Problema -->
       <div v-show="currentStep === 3">
         <h3 class="text-lg font-semibold text-gray-700 mb-2">3. O que aconteceu?</h3>
-        <p class="text-sm text-gray-500 mb-4">Descreva com detalhes o problema encontrado. Isso ajuda a equipe a levar os equipamentos certos para o conserto.</p>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Descrição do Problema</label>
+        <p class="text-sm text-gray-500 mb-4">Selecione a categoria e descreva o problema com detalhes para a equipe.</p>
+        
+        <!-- Categorias selecionáveis -->
+        <label class="block text-sm font-medium text-gray-700 mb-2">Categoria do Problema</label>
+        <div class="grid grid-cols-2 gap-2 mb-4">
+          <button
+            v-for="cat in problemCategories"
+            :key="cat.id"
+            type="button"
+            @click="selectCategory(cat)"
+            :class="selectedCategory === cat.id
+              ? 'border-red-500 bg-red-50 text-red-700 ring-2 ring-red-200'
+              : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'"
+            class="flex items-center gap-2 px-3 py-2.5 rounded-lg border text-left text-sm font-medium transition-all duration-150 active:scale-95"
+          >
+            <span class="text-lg shrink-0">{{ cat.icon }}</span>
+            <span class="leading-tight">{{ cat.label }}</span>
+          </button>
+        </div>
+
+        <!-- Campo de descrição detalhada -->
+        <label class="block text-sm font-medium text-gray-700 mb-1">Detalhes do Problema</label>
         <textarea 
           v-model="issue"
           rows="4"
           placeholder="Ex: Lâmpada central do teto está piscando sem parar..."
           class="w-full p-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500"
         ></textarea>
+        <p class="text-xs text-gray-400 mt-1">Descreva com detalhes para a equipe levar os equipamentos certos.</p>
       </div>
 
       <!-- Passo 4: Mídia (Fotos/Vídeos) -->
@@ -318,6 +369,10 @@ const submit = () => {
               class="w-full h-36 object-cover bg-gray-200"
               loading="lazy"
             />
+          </div>
+          <div>
+            <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Categoria</span>
+            <p class="font-medium text-gray-800">{{ problemCategories.find(c => c.id === selectedCategory)?.icon }} {{ problemCategories.find(c => c.id === selectedCategory)?.label }}</p>
           </div>
           <div>
             <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Problema Relatado</span>
