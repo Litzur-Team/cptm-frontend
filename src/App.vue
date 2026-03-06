@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted, provide } from "vue";
 import SplashScreen from "./components/SplashScreen.vue";
 import Login from "./components/Login.vue";
 import InspectorPanel from "./components/InspectorPanel.vue";
+import InspectorHome from "./components/InspectorHome.vue";
 import AdminPanel from "./components/AdminPanel.vue";
 import BottomNavigation from "./components/BottomNavigation.vue";
 import Profile from "./components/Profile.vue";
@@ -219,9 +220,11 @@ const updateReportStatus = (reportId, newStatus) => {
 
               <!-- Telas Normais -->
               <div v-else-if="currentTab === 'home'" key="home">
-                <InspectorPanel
+                <InspectorHome
                   v-if="currentView === 'inspector'"
-                  @submit-report="addNewReport"
+                  :reports="reports"
+                  @view-report="viewReport"
+                  @go-new-report="currentTab = 'new-report'"
                 />
                 <AdminPanel
                   v-if="currentView === 'admin'"
@@ -235,6 +238,7 @@ const updateReportStatus = (reportId, newStatus) => {
                 />
               </div>
 
+              <InspectorPanel v-else-if="currentTab === 'new-report' && currentView === 'inspector'" key="new-report" @submit-report="(r) => { addNewReport(r); currentTab = 'home'; }" />
               <History v-else-if="currentTab === 'history' && currentView === 'inspector'" key="history" :reports="reports" @view-report="viewReport" />
               <Profile v-else-if="currentTab === 'profile'" key="profile" />
               <Settings v-else-if="currentTab === 'settings'" key="settings" />
