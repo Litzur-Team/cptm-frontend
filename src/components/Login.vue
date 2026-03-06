@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from "vue";
 
-const emit = defineEmits(["login"]);
+const emit = defineEmits(["login", "forgot-password"]);
 
 const username = ref("");
 const password = ref("");
@@ -28,7 +28,7 @@ const handleLogin = () => {
 <template>
   <div class="flex flex-col items-center justify-center min-h-[80vh]">
     <div
-      class="w-full bg-white p-8 rounded-xl shadow-lg border-t-4 border-red-700"
+      class="w-full bg-white/95 backdrop-blur-sm p-8 rounded-xl shadow-lg border-t-4 border-red-700"
     >
       <div class="flex justify-center mb-4">
         <img
@@ -38,7 +38,7 @@ const handleLogin = () => {
         />
       </div>
       <div class="text-center mb-6">
-        <h2 class="text-2xl font-bold text-gray-800">Login</h2>
+        <h2 class="text-2xl font-bold text-gray-800">Entrar</h2>
         <p class="text-gray-500 text-sm mt-1">
           Insira suas credenciais para entrar
         </p>
@@ -88,9 +88,17 @@ const handleLogin = () => {
 
         <button
           type="submit"
-          class="w-full py-3 px-4 mt-2 bg-red-600 text-white font-bold rounded-lg shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-75 transition"
+          class="w-full py-3 px-4 mt-2 bg-red-600 text-white font-bold rounded-lg shadow-md hover:bg-red-700 active:scale-95 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-75 transition-all duration-150"
         >
           Entrar
+        </button>
+
+        <button
+          type="button"
+          @click="emit('forgot-password')"
+          class="w-full text-sm text-gray-500 hover:text-red-600 font-medium mt-2 transition-colors duration-200"
+        >
+          Esqueci minha senha
         </button>
       </form>
     </div>
