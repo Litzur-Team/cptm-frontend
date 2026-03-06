@@ -1,5 +1,15 @@
 <script setup>
-import { ref, computed, inject } from 'vue'
+import { ref, computed, inject, watch, nextTick, onUnmounted } from 'vue'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
+
+// Fix para ícones padrão do Leaflet com bundlers
+delete L.Icon.Default.prototype._getIconUrl
+L.Icon.Default.mergeOptions({
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+})
 
 const emit = defineEmits(['submit-report'])
 const showToast = inject('showToast')
@@ -7,14 +17,93 @@ const showToast = inject('showToast')
 const locationDesc = ref('')
 const issue = ref('')
 const coords = ref(null)
+const lat = ref(null)
+const lng = ref(null)
 const mediaFiles = ref([])
 const isLoadingLocation = ref(false)
 
 const currentStep = ref(1)
 const totalSteps = 5
 
+// Mapa Leaflet
+const mapContainer = ref(null)
+let map = null
+let marker = null
+
 const progressPercentage = computed(() => {
   return ((currentStep.value - 1) / (totalSteps - 1)) * 100
+})
+
+const initMap = (latitude, longitude) => {
+  if (map) {
+    map.setView([latitude, longitude], 16)
+    if (marker) {
+      marker.setLatLng([latitude, longitude])
+    } else {
+      marker = L.marker([latitude, longitude], { draggable: true }).addTo(map)
+      marker.on('dragend', () => {
+        const pos = marker.getLatLng()
+        updateCoords(pos.lat, pos.lng)
+      })
+    }
+    return
+  }
+
+  nextTick(() => {
+    if (!mapContainer.value) return
+
+    map = L.map(mapContainer.value).setView([latitude, longitude], 16)
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19,
+    }).addTo(map)
+
+    marker = L.marker([latitude, longitude], { draggable: true }).addTo(map)
+    marker.bindPopup('Arraste para ajustar a posição').openPopup()
+
+    marker.on('dragend', () => {
+      const pos = marker.getLatLng()
+      updateCoords(pos.lat, pos.lng)
+    })
+
+    map.on('click', (e) => {
+      const { lat: clickLat, lng: clickLng } = e.latlng
+      marker.setLatLng([clickLat, clickLng])
+      updateCoords(clickLat, clickLng)
+    })
+
+    // Garante que o mapa renderize corretamente
+    setTimeout(() => map.invalidateSize(), 100)
+  })
+}
+
+const updateCoords = (latitude, longitude) => {
+  lat.value = latitude
+  lng.value = longitude
+  coords.value = `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`
+}
+
+const destroyMap = () => {
+  if (map) {
+    map.remove()
+    map = null
+    marker = null
+  }
+}
+
+onUnmounted(() => {
+  destroyMap()
+})
+
+// Quando sai/entra no step 2, gerencia o mapa
+watch(currentStep, (newStep, oldStep) => {
+  if (newStep === 2 && coords.value && lat.value && lng.value) {
+    nextTick(() => initMap(lat.value, lng.value))
+  }
+  if (oldStep === 2 && newStep !== 2) {
+    destroyMap()
+  }
 })
 
 const nextStep = () => {
@@ -46,10 +135,14 @@ const getLocation = () => {
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        coords.value = `${position.coords.latitude.toFixed(5)}, ${position.coords.longitude.toFixed(5)}`
+        const latitude = position.coords.latitude
+        const longitude = position.coords.longitude
+        updateCoords(latitude, longitude)
         isLoadingLocation.value = false
+        showToast('Localização capturada com sucesso!', 'success')
+        nextTick(() => initMap(latitude, longitude))
       },
-      (error) => {
+      () => {
         showToast('Erro ao capturar localização. Verifique as permissões.', 'error')
         isLoadingLocation.value = false
       }
@@ -88,8 +181,11 @@ const submit = () => {
   locationDesc.value = ''
   issue.value = ''
   coords.value = null
+  lat.value = null
+  lng.value = null
   mediaFiles.value = []
   currentStep.value = 1
+  destroyMap()
 }
 </script>
 
@@ -138,6 +234,15 @@ const submit = () => {
             <span v-else>📍</span>
             {{ isLoadingLocation ? 'Obtendo localização...' : 'Capturar Minha Localização GPS' }}
           </button>
+
+          <!-- Mapa Leaflet -->
+          <div 
+            ref="mapContainer"
+            v-show="coords"
+            class="w-full h-56 rounded-lg border border-gray-300 overflow-hidden shadow-inner z-0"
+          ></div>
+          <p v-if="coords" class="text-xs text-gray-400 text-center -mt-1">Toque no mapa ou arraste o pin para ajustar</p>
+
           <input 
             v-model="coords"
             type="text" 
@@ -203,7 +308,16 @@ const submit = () => {
           </div>
           <div>
             <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Coordenadas GPS</span>
-            <p class="font-medium text-gray-800">{{ coords }}</p>
+            <p class="font-medium text-gray-800 font-mono text-sm">📍 {{ coords }}</p>
+          </div>
+          <!-- Mini mapa de preview na revisão -->
+          <div v-if="lat && lng" class="rounded-lg overflow-hidden border border-gray-200 shadow-sm">
+            <img 
+              :src="`https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=16&size=400x200&markers=${lat},${lng},red-pushpin`"
+              alt="Localização no mapa"
+              class="w-full h-36 object-cover bg-gray-200"
+              loading="lazy"
+            />
           </div>
           <div>
             <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Problema Relatado</span>
