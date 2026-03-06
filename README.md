@@ -43,6 +43,7 @@ O CPTM App permite que inspetores registrem ocorrências nas estações (problem
 | **Vue 3** | ^3.5 | Framework reativo (Composition API + `<script setup>`) |
 | **Vite** | ^7.3 | Build tool e dev server |
 | **Tailwind CSS** | ^4.2 | Framework CSS utility-first |
+| **Leaflet** | ^1.9 | Mapas interativos (OpenStreetMap) |
 | **JavaScript** | ES2022+ | Linguagem principal |
 
 ---
@@ -66,11 +67,12 @@ cptm-app/
         ├── SplashScreen.vue    # Tela de carregamento inicial
         ├── Login.vue           # Tela de login
         ├── ForgotPassword.vue  # Recuperação de senha (3 etapas)
-        ├── AdminPanel.vue      # Painel do administrador
-        ├── InspectorPanel.vue  # Painel do inspetor (criação de relatórios)
+        ├── AdminPanel.vue      # Painel do administrador (dashboard + gestão)
+        ├── InspectorHome.vue   # Visão geral do inspetor (dashboard)
+        ├── InspectorPanel.vue  # Criação de relatórios (wizard 5 etapas)
         ├── BottomNavigation.vue # Menu de navegação inferior
-        ├── History.vue         # Histórico de relatórios (inspetor)
-        ├── Profile.vue         # Perfil do usuário
+        ├── History.vue         # Histórico de relatórios (com filtros)
+        ├── Profile.vue         # Perfil (info pessoal + opções de conta)
         ├── Settings.vue        # Configurações do app
         ├── ReportDetail.vue    # Detalhes de um relatório
         ├── InspectorDetail.vue # Detalhes de um inspetor (admin)
@@ -101,21 +103,23 @@ cptm-app/
 
 ### Perfil Administrador
 
-- **Dashboard** — Visualização de relatórios e inspetores em abas separadas
-- **Gerenciar Inspetores** — Cadastrar, editar e excluir inspetores (modal com formulário)
-- **Visualizar Relatórios** — Listagem com cards clicáveis
+- **Dashboard** — Cards de estatísticas (total, pendentes, em andamento, resolvidos, inspetores)
+- **Busca e Filtros** — Barra de busca por texto + filtros por status (pills coloridas) na aba de relatórios
+- **Gerenciar Inspetores** — Cadastrar, editar e excluir inspetores (modal com formulário e validação)
+- **Visualizar Relatórios** — Listagem com cards clicáveis, barra de status colorida e avatar do inspetor
 - **Detalhe do Relatório** — Informações completas + alteração de status (Pendente → Em Andamento → Resolvido)
 - **Detalhe do Inspetor** — Perfil, estatísticas e relatórios associados
 
 ### Perfil Inspetor
 
+- **Visão Geral (Início)** — Dashboard com estatísticas, botão de nova ocorrência e relatórios recentes
 - **Criar Relatório** — Assistente de 5 etapas:
   1. Localização da estação
-  2. Coordenadas GPS
-  3. Descrição do problema
+  2. Coordenadas GPS + **mapa interativo Leaflet** (marcador arrastável, clique para reposicionar)
+  3. Categoria do problema (10 categorias selecionáveis) + descrição detalhada
   4. Mídia (fotos/vídeos)
-  5. Revisão e envio
-- **Histórico** — Lista de relatórios enviados com status
+  5. Revisão com preview de mapa estático e envio
+- **Histórico** — Lista de relatórios com busca por texto e filtros por status
 - **Detalhe do Relatório** — Visualização completa da ocorrência
 
 ### Navegação (Bottom Navigation)
@@ -123,6 +127,7 @@ cptm-app/
 | Aba | Admin | Inspetor |
 |---|---|---|
 | Início | ✅ | ✅ |
+| Registrar | — | ✅ |
 | Histórico | — | ✅ |
 | Perfil | ✅ | ✅ |
 | Ajustes | ✅ | ✅ |
@@ -133,6 +138,12 @@ cptm-app/
 - Toggle de Modo Escuro (placeholder)
 - Toggle de Geolocalização
 - Opção de excluir conta (com aviso MVP)
+
+### Perfil
+
+- **Tela principal** — Card com avatar, dados básicos, e-mail e telefone
+- **Informações Pessoais** — Visualizar e editar nome, e-mail e telefone + dados funcionais (CPF, cargo, departamento, matrícula, admissão)
+- **Opções de Conta** — Alterar senha (com validação), informações da sessão ativa, zona de perigo (excluir conta)
 
 ---
 
@@ -206,7 +217,7 @@ npm run preview
 O estado da aplicação é gerenciado no componente raiz `App.vue` através de refs reativas:
 
 - **`currentView`** — Controla a tela ativa (`login`, `forgot-password`, `admin`, `inspector`)
-- **`currentTab`** — Controla a aba da navegação inferior (`home`, `history`, `profile`, `settings`)
+- **`currentTab`** — Controla a aba da navegação inferior (`home`, `new-report`, `history`, `profile`, `settings`)
 - **`detailView`** — Controla a visualização de detalhes (`report-detail`, `inspector-detail`, `null`)
 
 ### Sistema de Toast (provide/inject)
