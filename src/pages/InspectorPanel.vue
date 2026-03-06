@@ -31,6 +31,11 @@ const mapContainer = ref(null)
 let map = null
 let marker = null
 
+// Mini mapa de preview (step 5)
+const previewMapContainer = ref(null)
+let previewMap = null
+let previewMarker = null
+
 const problemCategories = [
   { id: 'catraca', label: 'Catraca inoperante', icon: '🚧' },
   { id: 'iluminacao', label: 'Iluminação com defeito', icon: '💡' },
@@ -117,8 +122,38 @@ const destroyMap = () => {
   }
 }
 
+const destroyPreviewMap = () => {
+  if (previewMap) {
+    previewMap.remove()
+    previewMap = null
+    previewMarker = null
+  }
+}
+
+const initPreviewMap = () => {
+  if (!lat.value || !lng.value) return
+  destroyPreviewMap()
+  nextTick(() => {
+    if (!previewMapContainer.value) return
+    previewMap = L.map(previewMapContainer.value, {
+      zoomControl: false,
+      dragging: false,
+      scrollWheelZoom: false,
+      doubleClickZoom: false,
+      boxZoom: false,
+      keyboard: false,
+      touchZoom: false,
+      attributionControl: false,
+    }).setView([lat.value, lng.value], 16)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(previewMap)
+    previewMarker = L.marker([lat.value, lng.value]).addTo(previewMap)
+    setTimeout(() => previewMap.invalidateSize(), 100)
+  })
+}
+
 onUnmounted(() => {
   destroyMap()
+  destroyPreviewMap()
 })
 
 // Quando sai/entra no step 2, gerencia o mapa
@@ -128,6 +163,12 @@ watch(currentStep, (newStep, oldStep) => {
   }
   if (oldStep === 2 && newStep !== 2) {
     destroyMap()
+  }
+  if (newStep === 5) {
+    initPreviewMap()
+  }
+  if (oldStep === 5 && newStep !== 5) {
+    destroyPreviewMap()
   }
 })
 
@@ -362,14 +403,11 @@ const submit = () => {
             <p class="font-medium text-gray-800 font-mono text-sm">📍 {{ coords }}</p>
           </div>
           <!-- Mini mapa de preview na revisão -->
-          <div v-if="lat && lng" class="rounded-lg overflow-hidden border border-gray-200 shadow-sm">
-            <img 
-              :src="`https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=16&size=400x200&markers=${lat},${lng},red-pushpin`"
-              alt="Localização no mapa"
-              class="w-full h-36 object-cover bg-gray-200"
-              loading="lazy"
-            />
-          </div>
+          <div
+            v-if="lat && lng"
+            ref="previewMapContainer"
+            class="w-full h-36 rounded-lg border border-gray-200 shadow-sm z-0"
+          ></div>
           <div>
             <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Categoria</span>
             <p class="font-medium text-gray-800">{{ problemCategories.find(c => c.id === selectedCategory)?.icon }} {{ problemCategories.find(c => c.id === selectedCategory)?.label }}</p>
