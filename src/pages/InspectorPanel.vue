@@ -237,8 +237,8 @@ const nextStep = () => {
     }
   }
   if (currentStep.value === 6) {
-    if (!municipio.value || !coords.value) {
-      showToast('Selecione o município e capture a localização GPS.', 'warning')
+    if (!municipio.value) {
+      showToast('Selecione o município.', 'warning')
       return
     }
   }
@@ -825,7 +825,7 @@ const submit = () => {
         <!-- GPS -->
         <div class="border-t border-gray-100 pt-4">
           <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-            Coordenadas GPS (Datum: WGS84) <span class="text-red-500">*</span>
+            Coordenadas GPS (Datum: WGS84) <span class="text-gray-400 text-[10px] normal-case">(opcional)</span>
           </label>
           <button type="button" @click="getLocation"
             class="w-full bg-blue-600 text-white font-semibold px-4 py-3 rounded-lg hover:bg-blue-700 active:scale-95 transition-all duration-150 flex items-center justify-center gap-2"
