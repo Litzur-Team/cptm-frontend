@@ -1,5 +1,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, provide } from "vue";
+import * as efluentesApi from "./services/efluentes";
+import * as usuariosApi from "./services/usuarios";
 
 // Components (reusable UI)
 import SplashScreen from "./components/SplashScreen.vue";
@@ -24,6 +26,8 @@ const currentTab = ref("home");
 const detailView = ref(null); // 'report-detail' | 'inspector-detail' | null
 const selectedReport = ref(null);
 const selectedInspector = ref(null);
+const currentUser = ref(null);
+provide("currentUser", currentUser);
 
 // Toast system global via provide/inject
 const toast = ref({ visible: false, message: "", type: "success" });
@@ -54,61 +58,132 @@ onMounted(() => {
   }, 3000);
 });
 
+const loadEfluentes = async () => {
+  try {
+    const list = await efluentesApi.listEfluentes();
+    reports.value = (list || []).map(efluentesApi.dtoToReport);
+  } catch (err) {
+    showToast("Falha ao carregar relatórios: " + err.message, "error");
+  }
+};
+
+const loadInspectors = async () => {
+  try {
+    const list = await usuariosApi.listUsuarios();
+    inspectors.value = (list || []).map((u) => ({
+      id: u.id,
+      name: u.nome,
+      user: u.email,
+      email: u.email,
+      nivelAcesso: u.nivelAcesso,
+      status: u.status,
+    }));
+  } catch (err) {
+    showToast("Falha ao carregar inspetores: " + err.message, "error");
+  }
+};
+
 onUnmounted(() => {
   window.removeEventListener("online", handleOnline);
   window.removeEventListener("offline", handleOffline);
 });
 
 // ... (Mantenha o restante das suas funções de inspectors e reports aqui)
-const inspectors = ref([
-  { id: 1, name: "Thiago Silva", user: "inspetor", pass: "123" },
-  { id: 2, name: "Carlos Andrade", user: "carlos", pass: "123" },
-]);
+const inspectors = ref([]);
+const reports = ref([]);
 
-const reports = ref([
-  {
-    id: 1,
-    inspector: "Thiago Silva",
-    location: "Estação Osasco",
-    coords: "-23.5275, -46.7753",
-    issue: "Catraca inoperante",
-    status: "Pendente",
-    date: "03/03/2026",
-  },
-]);
-
-const handleLogin = (role) => {
+const handleLogin = async (payload) => {
+  const role = typeof payload === "string" ? payload : payload.role;
+  currentUser.value = typeof payload === "object" ? payload.user : null;
   currentView.value = role;
   currentTab.value = "home";
   detailView.value = null;
   showToast(`Bem-vindo, ${role === "admin" ? "Administrador" : "Inspetor"}!`, "success");
+  await loadEfluentes();
+  if (role === "admin") await loadInspectors();
 };
 const handleLogout = () => {
   currentView.value = "login";
   currentTab.value = "home";
   detailView.value = null;
+  currentUser.value = null;
   showToast("Sessão encerrada com sucesso.", "info");
 };
-const addInspector = (ins) => {
-  inspectors.value.push({ id: Date.now(), ...ins });
-  showToast("Inspetor cadastrado com sucesso!", "success");
+const addInspector = async (ins) => {
+  try {
+    const created = await usuariosApi.createUsuario({
+      nome: ins.name,
+      email: ins.email || ins.user,
+      senha: ins.pass,
+      nivelAcesso: ins.nivelAcesso ?? 2,
+    });
+    inspectors.value.push({
+      id: created.id,
+      name: created.nome,
+      user: created.email,
+      email: created.email,
+      nivelAcesso: created.nivelAcesso,
+      status: created.status,
+    });
+    showToast("Inspetor cadastrado com sucesso!", "success");
+  } catch (err) {
+    showToast("Erro ao cadastrar: " + err.message, "error");
+  }
 };
-const updateInspector = (updatedIns) => {
-  const index = inspectors.value.findIndex((i) => i.id === updatedIns.id);
-  if (index !== -1) inspectors.value[index] = updatedIns;
-  showToast("Inspetor atualizado com sucesso!", "success");
+const updateInspector = async (updatedIns) => {
+  try {
+    const dto = {
+      nome: updatedIns.name,
+      email: updatedIns.email || updatedIns.user,
+      senha: updatedIns.pass || "000000",
+      nivelAcesso: updatedIns.nivelAcesso ?? 2,
+    };
+    const saved = await usuariosApi.updateUsuario(updatedIns.id, dto);
+    const index = inspectors.value.findIndex((i) => i.id === updatedIns.id);
+    if (index !== -1) {
+      inspectors.value[index] = {
+        id: saved.id,
+        name: saved.nome,
+        user: saved.email,
+        email: saved.email,
+        nivelAcesso: saved.nivelAcesso,
+        status: saved.status,
+      };
+    }
+    showToast("Inspetor atualizado com sucesso!", "success");
+  } catch (err) {
+    showToast("Erro ao atualizar: " + err.message, "error");
+  }
 };
-const deleteInspector = (id) => {
-  inspectors.value = inspectors.value.filter((i) => i.id !== id);
-  showToast("Inspetor removido.", "warning");
+const deleteInspector = async (id) => {
+  try {
+    await usuariosApi.deleteUsuario(id);
+    inspectors.value = inspectors.value.filter((i) => i.id !== id);
+    showToast("Inspetor removido.", "warning");
+  } catch (err) {
+    showToast("Erro ao remover: " + err.message, "error");
+  }
 };
-const addNewReport = (newReport) => {
-  reports.value.unshift({
-    id: Date.now(),
-    date: new Date().toLocaleDateString(),
-    ...newReport,
-  });
-  showToast("Relatório enviado com sucesso!", "success");
+const addNewReport = async (newReport) => {
+  try {
+    const dto = efluentesApi.reportToDto({
+      ...newReport,
+      inspector: currentUser.value?.nome || newReport.autorPFCadastramento,
+    });
+    const created = await efluentesApi.createEfluente(dto);
+    const id = created.pkCdMeioAmbienteCptm;
+
+    // Upload photos as anexos
+    const fotos = (newReport.fotos || []).filter(Boolean);
+    for (const foto of fotos) {
+      try { await efluentesApi.uploadAnexo(id, foto); }
+      catch (e) { showToast("Falha ao enviar foto: " + e.message, "warning"); }
+    }
+    reports.value.unshift(efluentesApi.dtoToReport(created));
+    showToast("Relatório enviado com sucesso!", "success");
+  } catch (err) {
+    showToast("Erro ao enviar relatório: " + err.message, "error");
+  }
 };
 
 // Navegação para telas de detalhe
@@ -125,12 +200,18 @@ const backFromDetail = () => {
   selectedReport.value = null;
   selectedInspector.value = null;
 };
-const updateReportStatus = (reportId, newStatus) => {
+const updateReportStatus = async (reportId, newStatus) => {
   const report = reports.value.find(r => r.id === reportId);
-  if (report) {
-    report.status = newStatus;
+  if (!report) return;
+  try {
+    const dto = { ...(report._raw || {}), txStatusDoDesvioAmbiental: newStatus };
+    const saved = await efluentesApi.updateEfluente(reportId, dto);
+    const mapped = efluentesApi.dtoToReport(saved);
+    Object.assign(report, mapped);
     selectedReport.value = { ...report };
     showToast(`Status alterado para "${newStatus}".`, "success");
+  } catch (err) {
+    showToast("Erro ao atualizar status: " + err.message, "error");
   }
 };
 </script>
