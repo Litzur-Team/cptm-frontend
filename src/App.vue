@@ -2,6 +2,8 @@
 import { ref, onMounted, onUnmounted, provide } from "vue";
 import * as efluentesApi from "./services/efluentes";
 import * as usuariosApi from "./services/usuarios";
+import { enqueueReport, countPending } from "./services/offlineQueue";
+import { syncPending } from "./services/sync";
 
 // Components (reusable UI)
 import SplashScreen from "./components/SplashScreen.vue";
@@ -41,21 +43,45 @@ provide("showToast", showToast);
 
 // Indicador de conexão com a internet
 const isOnline = ref(navigator.onLine);
-const handleOnline = () => {
+const pendingCount = ref(0);
+
+const refreshPending = async () => {
+  try { pendingCount.value = await countPending(); } catch {}
+};
+
+const trySync = async () => {
+  if (!navigator.onLine) return;
+  const before = pendingCount.value;
+  const { synced, failed } = await syncPending();
+  await refreshPending();
+  if (synced > 0) {
+    showToast(`${synced} relatório(s) sincronizado(s) com sucesso.`, "success");
+    if (currentView.value !== "login") await loadEfluentes();
+  }
+  if (failed > 0) {
+    showToast(`${failed} relatório(s) falharam na sincronização.`, "warning");
+  }
+  return { synced, failed, before };
+};
+
+const handleOnline = async () => {
   isOnline.value = true;
   showToast("Conexão restabelecida.", "success");
+  await trySync();
 };
 const handleOffline = () => {
   isOnline.value = false;
-  showToast("Sem conexão com a internet.", "error");
+  showToast("Sem conexão. Os relatórios serão salvos localmente.", "warning");
 };
 
-onMounted(() => {
+onMounted(async () => {
   window.addEventListener("online", handleOnline);
   window.addEventListener("offline", handleOffline);
   setTimeout(() => {
     showSplash.value = false;
   }, 3000);
+  await refreshPending();
+  await trySync();
 });
 
 const loadEfluentes = async () => {
@@ -165,16 +191,29 @@ const deleteInspector = async (id) => {
   }
 };
 const addNewReport = async (newReport) => {
+  const enriched = {
+    ...newReport,
+    inspector: currentUser.value?.nome || newReport.autorPFCadastramento,
+  };
+  const fotos = (newReport.fotos || []).filter(Boolean);
+
+  // Sem conexão → vai pra fila offline
+  if (!navigator.onLine) {
+    try {
+      await enqueueReport(enriched, fotos);
+      await refreshPending();
+      showToast("Sem conexão. Relatório salvo localmente e será enviado depois.", "warning");
+    } catch (err) {
+      showToast("Erro ao salvar offline: " + err.message, "error");
+    }
+    return;
+  }
+
+  // Online → tenta enviar
   try {
-    const dto = efluentesApi.reportToDto({
-      ...newReport,
-      inspector: currentUser.value?.nome || newReport.autorPFCadastramento,
-    });
+    const dto = efluentesApi.reportToDto(enriched);
     const created = await efluentesApi.createEfluente(dto);
     const id = created.pkCdMeioAmbienteCptm;
-
-    // Upload photos as anexos
-    const fotos = (newReport.fotos || []).filter(Boolean);
     for (const foto of fotos) {
       try { await efluentesApi.uploadAnexo(id, foto); }
       catch (e) { showToast("Falha ao enviar foto: " + e.message, "warning"); }
@@ -182,7 +221,14 @@ const addNewReport = async (newReport) => {
     reports.value.unshift(efluentesApi.dtoToReport(created));
     showToast("Relatório enviado com sucesso!", "success");
   } catch (err) {
-    showToast("Erro ao enviar relatório: " + err.message, "error");
+    // Falha de rede → enfileira como fallback
+    try {
+      await enqueueReport(enriched, fotos);
+      await refreshPending();
+      showToast("Falha ao enviar. Salvo localmente para reenvio.", "warning");
+    } catch (e) {
+      showToast("Erro ao enviar e ao salvar offline: " + e.message, "error");
+    }
   }
 };
 
@@ -267,6 +313,15 @@ const updateReportStatus = async (reportId, newStatus) => {
                 {{ isOnline ? 'Online' : 'Offline' }}
               </span>
             </div>
+            <button
+              v-if="pendingCount > 0"
+              @click="trySync"
+              :title="isOnline ? 'Sincronizar pendentes' : 'Aguardando conexão'"
+              class="text-[11px] bg-amber-500 text-white px-2 py-1 rounded-full font-bold flex items-center gap-1 active:scale-95 transition-all"
+            >
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+              {{ pendingCount }} pendente{{ pendingCount > 1 ? 's' : '' }}
+            </button>
             <button
               @click="handleLogout"
               class="text-sm bg-red-800 px-3 py-1.5 rounded-lg hover:bg-red-900 active:scale-95 transition-all duration-150 flex items-center gap-1.5"
