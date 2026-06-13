@@ -1,26 +1,41 @@
 <script setup>
-import { ref } from "vue";
+import { ref, inject } from "vue";
+import { listUsuarios } from "../services/usuarios";
 
 const emit = defineEmits(["login", "forgot-password"]);
+const showToast = inject("showToast", () => {});
 
-const username = ref("");
+const email = ref("");
 const password = ref("");
 const errorMessage = ref("");
+const loading = ref(false);
 
-const handleLogin = () => {
-  errorMessage.value = ""; // Limpa erros anteriores
-
-  const user = username.value.trim().toLowerCase();
-  const pass = password.value;
-
-  // Lógica fictícia de validação para o MVP
-  if (user === "admin" && pass === "123") {
-    emit("login", "admin");
-  } else if (user === "inspetor" && pass === "123") {
-    emit("login", "inspector");
-  } else {
-    errorMessage.value =
-      "Usuário ou senha inválidos. (Dica: use admin/123 ou inspetor/123)";
+const handleLogin = async () => {
+  errorMessage.value = "";
+  const e = email.value.trim().toLowerCase();
+  if (!e || !password.value) {
+    errorMessage.value = "Informe e-mail e senha.";
+    return;
+  }
+  loading.value = true;
+  try {
+    const usuarios = await listUsuarios();
+    const user = usuarios.find(u => (u.email || "").toLowerCase() === e);
+    if (!user) {
+      errorMessage.value = "Usuário não encontrado.";
+      return;
+    }
+    if (user.status && user.status.toLowerCase() === "inativo") {
+      errorMessage.value = "Usuário inativo. Contate o administrador.";
+      return;
+    }
+    const role = user.nivelAcesso === 1 ? "admin" : "inspector";
+    emit("login", { role, user });
+  } catch (err) {
+    errorMessage.value = "Falha ao conectar com o servidor.";
+    showToast(err.message, "error");
+  } finally {
+    loading.value = false;
   }
 };
 </script>
@@ -46,27 +61,21 @@ const handleLogin = () => {
 
       <form @submit.prevent="handleLogin" class="space-y-4">
         <div>
-          <label
-            class="block text-sm font-medium text-gray-700 mb-1"
-            for="username"
-          >
-            Usuário
+          <label class="block text-sm font-medium text-gray-700 mb-1" for="email">
+            E-mail
           </label>
           <input
-            id="username"
-            v-model="username"
-            type="text"
-            placeholder="Ex: admin ou inspetor"
+            id="email"
+            v-model="email"
+            type="email"
+            placeholder="seu@email.com"
             required
             class="w-full p-3 border border-gray-300 rounded-lg focus:ring-red-500 focus:border-red-500 transition outline-none"
           />
         </div>
 
         <div>
-          <label
-            class="block text-sm font-medium text-gray-700 mb-1"
-            for="password"
-          >
+          <label class="block text-sm font-medium text-gray-700 mb-1" for="password">
             Senha
           </label>
           <input
@@ -88,9 +97,10 @@ const handleLogin = () => {
 
         <button
           type="submit"
-          class="w-full py-3 px-4 mt-2 bg-red-600 text-white font-bold rounded-lg shadow-md hover:bg-red-700 active:scale-95 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-75 transition-all duration-150"
+          :disabled="loading"
+          class="w-full py-3 px-4 mt-2 bg-red-600 text-white font-bold rounded-lg shadow-md hover:bg-red-700 active:scale-95 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-75 transition-all duration-150 disabled:opacity-60"
         >
-          Entrar
+          {{ loading ? "Entrando..." : "Entrar" }}
         </button>
 
         <button
